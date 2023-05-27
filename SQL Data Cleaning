@@ -1,0 +1,168 @@
+--SQL Data Cleaning
+
+Select NewSaleDate, CAST(SaleDate as date)
+From PorfolioProject..HousingFindings
+
+------------------------------------------------------------------------------------------------------
+--Better representation of the SaleDate Column
+
+Alter table HousingFindings 
+ADD NewSaleDate date
+
+UPDATE HousingFindings
+SET NewSaleDate = CAST(SaleDate as date)
+
+
+-----------------------------------------------------------------------------------------------------
+--Updating the NULL values of PropertyAddress with appropriate address corresponding to the ParcelId
+
+Select parcelID, PropertyAddress
+From PorfolioProject..HousingFindings
+--Where PropertyAddress is null
+order by ParcelID 
+
+Select h1.[UniqueID ] ,h1.ParcelID, h1.PropertyAddress, h2.[UniqueID ], h2.ParcelID, 
+h2.PropertyAddress,ISNULL(h1.PropertyAddress,h2.PropertyAddress) 
+From PorfolioProject..HousingFindings h1
+JOIN PorfolioProject..HousingFindings h2
+	on h1.ParcelID = h2.ParcelID
+	AND h1.[UniqueID ]<> h2.[UniqueID ] --Where it's not the same row
+Where h1.PropertyAddress is null
+order by h1.ParcelID
+
+
+Update h1
+SET PropertyAddress = ISNULL(h1.PropertyAddress,h2.PropertyAddress)
+From PorfolioProject..HousingFindings h1
+JOIN PorfolioProject..HousingFindings h2
+	on h1.ParcelID = h2.ParcelID
+	AND h1.[UniqueID ] <> h2.[UniqueID ]
+Where h1.PropertyAddress is null
+
+
+---------------------------------------------------------------------------------------------------
+--Subdivision of PropertyAddress into Different Columns (Location, City)
+
+SELECT 
+PropertyAddress,
+SUBSTRING(PropertyAddress, 1, CHARINDEX(',', PropertyAddress)-1) as Location,
+SUBSTRING(PropertyAddress, CHARINDEX(',', PropertyAddress)+1, LEN(PropertyAddress)) as City
+From PorfolioProject..HousingFindings
+
+Alter table HousingFindings 
+ADD PropertyLocation nvarchar(255)
+
+UPDATE HousingFindings
+SET PropertyLocation = SUBSTRING(PropertyAddress, 1, CHARINDEX(',', PropertyAddress)-1)
+
+
+ALTER TABLE HousingFindings
+Add PropertyCity Nvarchar(255)
+
+Update HousingFindings
+SET PropertyCity =SUBSTRING(PropertyAddress, CHARINDEX(',', PropertyAddress)+1, LEN(PropertyAddress))
+
+Select PropertyAddress, PropertyLocation, PropertyCity
+From PorfolioProject..HousingFindings
+
+-----------------------------------------------------------------------------------------------------
+--Subdivision of  OwnerAddress into Different Columns (Location, City,State)
+
+
+Select
+OwnerAddress,
+PARSENAME(REPLACE(OwnerAddress, ',', '.') , 3)
+,PARSENAME(REPLACE(OwnerAddress, ',', '.') , 2)
+,PARSENAME(REPLACE(OwnerAddress, ',', '.') , 1)
+From PorfolioProject..HousingFindings
+
+
+
+ALTER TABLE HousingFindings
+Add OwnerLocation Nvarchar(255)
+
+Update HousingFindings
+SET OwnerLocation = PARSENAME(REPLACE(OwnerAddress, ',', '.') , 3)
+
+
+ALTER TABLE HousingFindings
+Add OwnerCity Nvarchar(255)
+
+Update HousingFindings
+SET OwnerCity = PARSENAME(REPLACE(OwnerAddress, ',', '.') , 2)
+
+
+ALTER TABLE HousingFindings
+Add OwnerState Nvarchar(255);
+
+Update HousingFindings
+SET OwnerState = PARSENAME(REPLACE(OwnerAddress, ',', '.') , 1)
+
+Select OwnerAddress,OwnerLocation,OwnerCity,OwnerState
+From PorfolioProject..HousingFindings
+
+------------------------------------------------------------------------------------------------------
+--Using Case statement to Change all the Yes and No to Y and N in SoldAsVacant Column
+
+Select SoldAsVacant,count(SoldAsVacant)
+From PorfolioProject..HousingFindings
+Group by SoldAsVacant
+order by 2
+
+SELECT SoldAsVacant,
+CASE 
+  When SoldAsVacant='Yes' THEN 'Y'
+  When SoldAsVacant='No' THEN 'N'
+  Else SoldAsVacant /* no change */
+END  as UpdatedColumn
+From PorfolioProject..HousingFindings
+
+
+UPDATE PorfolioProject..HousingFindings
+SET SoldAsVacant= CASE 
+  When SoldAsVacant='Yes' THEN 'Y'
+  When SoldAsVacant='No' THEN 'N'
+  Else SoldAsVacant 
+END  
+
+
+------------------------------------------------------------------------------------------------------
+--Removing Rows with duplicate data--Not recommended to delete actual data in database
+--Better to use something like Temp tables
+
+WITH Cte_RankedRows 
+AS
+(SELECT *
+ ,ROW_NUMBER() OVER(
+    Partition BY  ParcelID,               
+                  PropertyAddress,
+				  SalePrice,
+				  SaleDate,
+				  LegalReference
+                  Order by 
+				          UniqueID) as RowNo
+From PorfolioProject..HousingFindings
+)
+--DELETE
+--From Cte_RankedRows 
+--WHERE RowNo>1
+
+SELECT *
+From Cte_RankedRows 
+--WHERE RowNo>1
+
+Select *
+From PorfolioProject..HousingFindings
+
+------------------------------------------------------------------------------------------------------
+--Delete Unused Columns(Not recommended to be used on Raw database data)
+--Useful for Views
+
+Alter TABLE PorfolioProject..HousingFindings 
+ DROP COLUMN PropertyAddress, OwnerAddress, SaleDate /* deleting columns previously subdivided into more readable columns or Cleaned */
+
+
+Select *
+From PorfolioProject..HousingFindings
+
+------------------------------------------------------------------------------------------------------
